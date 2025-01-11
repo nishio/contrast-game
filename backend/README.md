@@ -6,7 +6,6 @@
 - Python 3.10 以上を推奨 (Recommended Python 3.10 or later)
 - Python 3.12 での既知の問題 (Known issues with Python 3.12):
   - 一部の依存パッケージ（aiohttp等）との互換性の問題
-  - six モジュールの依存関係の問題
 
 ### 依存パッケージ / Dependencies
 - FastAPI (^0.115.6)
@@ -16,34 +15,73 @@
 
 ## セットアップ手順 / Setup Instructions
 
-1. Python環境の準備 / Prepare Python Environment
-```bash
-# pyenvでPython 3.10をインストール / Install Python 3.10 using pyenv
-pyenv install 3.10
-pyenv local 3.10
+### 1. 仮想環境の準備 / Prepare Virtual Environment
 
-# poetryのインストール / Install poetry
-curl -sSL https://install.python-poetry.org | python3 -
+```bash
+# プロジェクトディレクトリに移動 / Change to project directory
+cd backend
+
+# 仮想環境の作成 / Create virtual environment
+python -m venv venv
+
+# 仮想環境のアクティベート / Activate virtual environment
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+
+# 仮想環境のPythonバージョン確認 / Check Python version in virtual environment
+python --version  # Should show Python 3.10.x
 ```
 
-2. 依存パッケージのインストール / Install Dependencies
+### 2. 依存パッケージのインストール / Install Dependencies
+
 ```bash
-poetry install
+# pipのアップグレード / Upgrade pip
+python -m pip install --upgrade pip
+
+# 依存パッケージのインストール / Install dependencies
+pip install -r requirements.txt
+
+# または直接インストール / Or install directly
+pip install "fastapi[all]" "uvicorn[standard]" pydantic aiohttp pytest pytest-asyncio httpx
 ```
 
-3. テストの実行 / Run Tests
-```bash
-poetry run pytest
-```
+### 3. 動作確認 / Verification
 
-4. 開発サーバーの起動 / Start Development Server
 ```bash
-poetry run uvicorn app.main:app --reload
+# テストの実行 / Run tests
+pytest
+
+# 開発サーバーの起動 / Start development server
+uvicorn app.main:app --reload
 ```
 
 ## トラブルシューティング / Troubleshooting
 
-### 既知の問題 / Known Issues
+### 仮想環境の問題 / Virtual Environment Issues
+
+1. 仮想環境のアクティベーションエラー / Activation Error
+- 症状: アクティベーションコマンドが失敗する
+- 解決策:
+  ```bash
+  # 仮想環境の再作成 / Recreate virtual environment
+  rm -rf venv
+  python -m venv venv
+  source venv/bin/activate  # macOS/Linux
+  # または / or
+  venv\Scripts\activate  # Windows
+  ```
+
+2. パッケージのインストールエラー / Package Installation Error
+- 症状: `pip install` が失敗する
+- 解決策:
+  ```bash
+  # キャッシュを使わずに再インストール / Reinstall without cache
+  pip install --no-cache-dir -r requirements.txt
+  ```
+
+### Python関連の問題 / Python Issues
 
 1. Python 3.12での依存関係の問題 / Dependency Issues with Python 3.12
 - 症状: 依存パッケージとの互換性の問題
