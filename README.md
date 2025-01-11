@@ -89,4 +89,3 @@ npm run dev
 
 ### ライセンス / License
 MIT License
->>>>>>> 7283677 (docs: 開発計画をREADMEに追加)
