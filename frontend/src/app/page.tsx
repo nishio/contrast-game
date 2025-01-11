@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react'
 import { Box, Grid, GridItem, Text, VStack, HStack, Button, useToast } from '@chakra-ui/react'
+import { Piece } from './components/Piece'
 
 interface Cell {
   color: 'white' | 'black' | 'gray'
@@ -43,13 +44,20 @@ export default function Home() {
     const initGame = async () => {
       try {
         // Create new game
-        const response = await fetch('http://localhost:8000/api/games/create', {
-          method: 'POST'
+        const auth = btoa('user:6e8e0788d1db10c09bd5b1e68e4750e3');
+        const headers = new Headers();
+        headers.set('Authorization', 'Basic ' + auth);
+        
+        const response = await fetch('https://contrast-game-server-tunnel-mdn1uzql.devinapps.com/api/games/create', {
+          method: 'POST',
+          headers: headers
         });
         const { game_id } = await response.json();
         
-        // Connect to WebSocket
-        const ws = new WebSocket(`ws://localhost:8000/api/games/${game_id}/ws`);
+        // Connect to WebSocket with auth in query parameter
+        const ws = new WebSocket(
+          `wss://contrast-game-server-tunnel-mdn1uzql.devinapps.com/api/games/${game_id}/ws?auth=${encodeURIComponent(auth)}`
+        );
         wsRef.current = ws;
         
         ws.onopen = () => {
@@ -272,14 +280,9 @@ export default function Home() {
               onClick={() => handleCellClick(rowIndex, colIndex)}
             >
               {cell.piece && (
-                <Box
-                  w="40px"
-                  h="40px"
-                  borderRadius="full"
-                  bg={cell.piece === 1 ? 'blue.500' : 'red.500'}
-                  boxShadow="lg"
-                  transition="transform 0.2s"
-                  _hover={{ transform: 'scale(1.1)' }}
+                <Piece
+                  piece={cell.piece}
+                  tileColor={cell.color}
                 />
               )}
             </GridItem>
