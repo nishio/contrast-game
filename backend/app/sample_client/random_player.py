@@ -50,9 +50,11 @@ class RandomPlayer:
         return Move(
             piece_position=move_dict["piece_position"],
             target_position=move_dict["target_position"],
-            tile_placement=TilePlacement(**move_dict["possible_tile_placements"][0])
-            if move_dict["possible_tile_placements"]
-            else None
+            tile_placement=(
+                TilePlacement(**random.choice([p for p in move_dict["possible_tile_placements"] if p is not None]))
+                if any(p is not None for p in move_dict["possible_tile_placements"])
+                else None
+            )
         )
         
     async def play_game(self, game_id: str):

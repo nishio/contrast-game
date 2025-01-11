@@ -63,21 +63,26 @@ class RuleEngine:
         cell = board.grid[row][col]
         moves = set()
         
-        # Define possible directions based on tile color
+        # For basic moves, validate based on source cell color
         directions = []
         if cell.color in ["white", "gray"]:  # Orthogonal moves
             directions.extend([(0, 1), (0, -1), (1, 0), (-1, 0)])
         if cell.color in ["black", "gray"]:  # Diagonal moves
             directions.extend([(1, 1), (1, -1), (-1, 1), (-1, -1)])
             
-        # Add basic moves
+        # Add basic moves (with source color validation)
         for dr, dc in directions:
             new_row, new_col = row + dr, col + dc
             if (0 <= new_row < 5 and 0 <= new_col < 5 and 
                 board.grid[new_row][new_col].piece is None):
+                # For basic moves, validate destination cell color
+                is_diagonal = abs(dr) == abs(dc)
+                dst_color = board.grid[new_row][new_col].color
+                if (is_diagonal and dst_color == "white") or (not is_diagonal and dst_color == "black"):
+                    continue
                 moves.add((new_row, new_col))
                 
-        # Add jumping moves
+        # Add jumping moves (no source color validation)
         jumps = RuleEngine._get_jump_moves(board, position, player, set())
         moves.update(jumps)
         
@@ -92,28 +97,36 @@ class RuleEngine:
         moves = set()
         visited.add(position)
         
-        # Define possible jump directions based on tile color
-        directions = []
-        if cell.color in ["white", "gray"]:  # Orthogonal jumps
-            directions.extend([(0, 2), (0, -2), (2, 0), (-2, 0)])
-        if cell.color in ["black", "gray"]:  # Diagonal jumps
-            directions.extend([(2, 2), (2, -2), (-2, 2), (-2, -2)])
-            
-        for dr, dc in directions:
+        # Allow jumping in all directions regardless of source cell color
+        for dr, dc in [(0, 2), (0, -2), (2, 0), (-2, 0), (2, 2), (2, -2), (-2, 2), (-2, -2)]:
             new_row, new_col = row + dr, col + dc
             mid_row, mid_col = row + dr//2, col + dc//2
             
-            if (0 <= new_row < 5 and 0 <= new_col < 5 and
-                board.grid[mid_row][mid_col].piece == player and  # Jump over own piece
-                board.grid[new_row][new_col].piece is None and
-                (new_row, new_col) not in visited):
+            # Check bounds and basic jump conditions
+            if not (0 <= new_row < 5 and 0 <= new_col < 5):
+                continue
                 
-                moves.add((new_row, new_col))
-                # Recursively find more jumps from the new position
-                next_jumps = RuleEngine._get_jump_moves(
-                    board, (new_row, new_col), player, visited.copy()
-                )
-                moves.update(next_jumps)
+            # Must jump over any piece (not just own pieces) and land on empty cell
+            if (board.grid[mid_row][mid_col].piece is None or  # Must jump over a piece
+                board.grid[new_row][new_col].piece is not None or  # Must land on empty cell
+                (new_row, new_col) in visited):  # No revisiting positions
+                continue
+                
+            # Only validate destination cell color for jumps
+            is_diagonal = abs(dr) == abs(dc)
+            dst_color = board.grid[new_row][new_col].color
+            
+            # For jumps: orthogonal jumps can't land on black, diagonal jumps can't land on white
+            if (not is_diagonal and dst_color == "black") or (is_diagonal and dst_color == "white"):
+                continue
+                
+            # Move is valid, add it and check for further jumps
+            moves.add((new_row, new_col))
+            # Recursively find more jumps from the new position
+            next_jumps = RuleEngine._get_jump_moves(
+                board, (new_row, new_col), player, visited.copy()
+            )
+            moves.update(next_jumps)
                 
         return moves
 

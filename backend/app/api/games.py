@@ -29,7 +29,17 @@ async def get_game_state(game_id: str) -> dict:
         "available_tiles": (game_state.player1_tiles 
                           if game_state.current_player == 1 
                           else game_state.player2_tiles),
-        "legal_moves": RuleEngine.get_legal_moves(game_state)
+        "legal_moves": [{
+            "piece_position": move.piece_position,
+            "target_position": move.target_position,
+            "possible_tile_placements": [
+                {"position": cell, "color": color}
+                for cell in RuleEngine._get_empty_cells(game_state.board)
+                for color in ["black", "gray"]
+                if (game_state.player1_tiles if game_state.current_player == 1 
+                    else game_state.player2_tiles)[color] > 0
+            ] + [None]
+        } for move in RuleEngine.get_legal_moves(game_state)]
     }
 
 @router.post("/{game_id}/move")
@@ -78,16 +88,68 @@ async def get_legal_moves(game_id: str):
 @router.websocket("/{game_id}/ws")
 async def websocket_endpoint(websocket: WebSocket, game_id: str):
     """WebSocket endpoint for real-time game updates."""
-    await websocket.accept()
     try:
-        # Register this connection for game updates
+        await websocket.accept()
         game_manager.register_connection(game_id, websocket)
         
+        # Send initial game state
+        game_state = game_manager.get_game_state(game_id)
+        if game_state:
+            state_dict = {
+                "board": [[{
+                    "color": cell.color,
+                    "piece": cell.piece
+                } for cell in row] for row in game_state.board.grid],
+                "current_player": game_state.current_player,
+                "available_tiles": (game_state.player1_tiles 
+                                if game_state.current_player == 1 
+                                else game_state.player2_tiles),
+                "legal_moves": [
+                    {
+                        "piece_position": move.piece_position,
+                        "target_position": move.target_position,
+                        "possible_tile_placements": [
+                            {"position": pos, "color": color}
+                            for pos in [(r, c) for r in range(5) for c in range(5)]
+                            if game_state.board.grid[pos[0]][pos[1]].piece is None
+                            for color in ["black", "gray"]
+                            if (game_state.player1_tiles if game_state.current_player == 1 
+                                else game_state.player2_tiles)[color] > 0
+                        ] + [None]
+                    }
+                    for move in RuleEngine.get_legal_moves(game_state)
+                ]
+            }
+            await websocket.send_json(state_dict)
+        
         while True:
-            # Wait for messages (can be used for chat or other features)
-            data = await websocket.receive_text()
-            # Echo back for now
-            await websocket.send_text(f"Message text was: {data}")
-            
-    except WebSocketDisconnect:
+            try:
+                data = await websocket.receive_json()
+                if data.get("type") == "move":
+                    move_data = data.get("data", {})
+                    move = Move(**move_data)
+                    if RuleEngine.validate_move(game_state, move):
+                        new_state = await game_manager.apply_move(game_id, move)
+                        await websocket.send_json({
+                            "type": "move_response",
+                            "status": "success",
+                            "winner": RuleEngine.check_win_condition(new_state)
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "move_response",
+                            "status": "error",
+                            "message": "Invalid move"
+                        })
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(e)
+                })
+                
+    except Exception as e:
+        print(f"WebSocket error: {str(e)}")
+    finally:
         game_manager.remove_connection(game_id, websocket)
