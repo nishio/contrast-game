@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "contrast-game"
+version = "0.1.0"
+description = "Contrast Game Server"
+authors = ["Devin"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = {extras = ["standard"], version = "^0.115.6"}
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+pydantic = "^2.10.5"
+aiohttp = "^3.11.11"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-asyncio = "^0.25.2"
+httpx = "^0.28.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
