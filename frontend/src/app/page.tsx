@@ -44,19 +44,14 @@ export default function Home() {
     const initGame = async () => {
       try {
         // Create new game
-        const auth = btoa('user:6e8e0788d1db10c09bd5b1e68e4750e3');
-        const headers = new Headers();
-        headers.set('Authorization', 'Basic ' + auth);
-        
-        const response = await fetch('https://contrast-game-server-tunnel-mdn1uzql.devinapps.com/api/games/create', {
-          method: 'POST',
-          headers: headers
+        const response = await fetch('http://localhost:8000/api/games/create', {
+          method: 'POST'
         });
         const { game_id } = await response.json();
         
-        // Connect to WebSocket with auth in query parameter
+        // Connect to WebSocket
         const ws = new WebSocket(
-          `wss://contrast-game-server-tunnel-mdn1uzql.devinapps.com/api/games/${game_id}/ws?auth=${encodeURIComponent(auth)}`
+          `ws://localhost:8000/api/games/${game_id}/ws`
         );
         wsRef.current = ws;
         
