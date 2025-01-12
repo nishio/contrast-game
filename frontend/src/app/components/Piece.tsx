@@ -15,7 +15,7 @@ export function Piece({ piece, tileColor }: PieceProps) {
   const pentagonPoints = "50,0 95,40 80,100 20,100 5,40"
 
   return (
-    <Box position="relative" width="40px" height="40px">
+    <Box position="relative" width="40px" height="40px" data-testid={`piece-${piece}-${tileColor}`}>
       {/* Main piece pentagon */}
       <Box
         as="svg"

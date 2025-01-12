@@ -138,6 +138,8 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                 if data.get("type") == "move":
                     move_data = data.get("data", {})
                     move = Move(**move_data)
+                    # Get the current game state before validating the move
+                    game_state = game_manager.get_game_state(game_id)
                     if RuleEngine.validate_move(game_state, move):
                         new_state = await game_manager.apply_move(game_id, move)
                         response = {

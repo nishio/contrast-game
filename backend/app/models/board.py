@@ -14,8 +14,8 @@ class Board(BaseModel):
             data['grid'] = [[Cell() for _ in range(5)] for _ in range(5)]
             # Initialize player pieces
             for i in range(5):
-                data['grid'][0][i].piece = 2  # Player 2's pieces
-                data['grid'][4][i].piece = 1  # Player 1's pieces
+                data['grid'][4][i].piece = 1  # Player 1's pieces (bottom row)
+                data['grid'][0][i].piece = 2  # Player 2's pieces (top row)
         super().__init__(**data)
 
     def is_valid_position(self, position: Tuple[int, int]) -> bool:

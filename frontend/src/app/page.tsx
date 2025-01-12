@@ -441,6 +441,8 @@ export default function Home() {
               justifyContent="center"
               cursor="pointer"
               onClick={() => handleCellClick(rowIndex, colIndex)}
+              data-testid={`cell-${rowIndex}-${colIndex}`}
+              data-piece={cell.piece?.toString() || ''}
             >
               {cell.piece && (
                 <Piece
