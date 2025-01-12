@@ -37,7 +37,8 @@ def test_initial_board_setup(initial_game_state):
             assert board.grid[row][col].color == "white"
 
 def test_basic_legal_moves(initial_game_state):
-    """Test that basic legal moves are generated correctly."""
+    """Test that basic legal moves are generated correctly and respect directional constraints."""
+    # Test Player 1's moves
     legal_moves = RuleEngine.get_legal_moves(initial_game_state)
     
     # Player 1 should be able to move each piece up one square
@@ -54,10 +55,25 @@ def test_basic_legal_moves(initial_game_state):
     # Check that all expected moves are in the legal moves
     for move in expected_moves:
         assert move in actual_moves
+        
+    # Test Player 2's moves
+    initial_game_state.current_player = 2
+    legal_moves = RuleEngine.get_legal_moves(initial_game_state)
+    
+    # Player 2 should only be able to move upward (toward row 0)
+    actual_moves = {
+        (move.piece_position[0], move.piece_position[1],
+         move.target_position[0], move.target_position[1])
+        for move in legal_moves
+    }
+    
+    # Verify all moves are upward (target row < starting row)
+    for from_row, _, to_row, _ in actual_moves:
+        assert to_row < from_row, f"Move from row {from_row} to {to_row} should be upward only"
 
 def test_jumping_moves(initial_game_state):
-    """Test that jumping moves are generated correctly."""
-    # Set up a position where jumping is possible
+    """Test that jumping moves are generated correctly and respect directional constraints."""
+    # Test Player 1's jump moves
     initial_game_state.board.grid[3][2].piece = 1  # Place piece that will jump
     initial_game_state.board.grid[4][2].piece = None  # Remove the original piece
     initial_game_state.board.grid[2][2].piece = 2  # Place opponent piece to jump over
@@ -74,6 +90,24 @@ def test_jumping_moves(initial_game_state):
         move.piece_position == (3, 2) and move.target_position == (1, 2)
         for move in jump_moves
     )
+    
+    # Test Player 2's jump moves
+    initial_game_state.current_player = 2
+    initial_game_state.board.grid[2][2].piece = 2  # Place Player 2's piece
+    initial_game_state.board.grid[1][2].piece = 1  # Place piece to jump over
+    initial_game_state.board.grid[0][2].piece = None  # Clear landing spot
+    
+    legal_moves = RuleEngine.get_legal_moves(initial_game_state)
+    jump_moves = [
+        move for move in legal_moves
+        if abs(move.piece_position[0] - move.target_position[0]) > 1 or
+           abs(move.piece_position[1] - move.target_position[1]) > 1
+    ]
+    
+    # Verify all jump moves are upward
+    for move in jump_moves:
+        assert move.target_position[0] < move.piece_position[0], \
+            f"Jump move from row {move.piece_position[0]} to {move.target_position[0]} should be upward only"
 
 def test_tile_placement(initial_game_state):
     """Test that tile placement rules are enforced."""

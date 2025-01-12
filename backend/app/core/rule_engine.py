@@ -70,9 +70,12 @@ class RuleEngine:
         if cell.color in ["black", "gray"]:  # Diagonal moves
             directions.extend([(1, 1), (1, -1), (-1, 1), (-1, -1)])
             
-        # Add basic moves (with source color validation)
+        # Add basic moves (with source color and direction validation)
         for dr, dc in directions:
             new_row, new_col = row + dr, col + dc
+            # Both players should move upward (toward row 0)
+            if new_row >= row:  # Skip moves that go downward or stay at same row
+                continue
             if (0 <= new_row < 5 and 0 <= new_col < 5 and 
                 board.grid[new_row][new_col].piece is None):
                 # For basic moves, validate destination cell color
@@ -102,7 +105,11 @@ class RuleEngine:
             new_row, new_col = row + dr, col + dc
             mid_row, mid_col = row + dr//2, col + dc//2
             
-            # Check bounds and basic jump conditions
+            # Check bounds, direction, and basic jump conditions
+            # Both players should move upward (toward row 0)
+            if new_row >= row:  # Skip jumps that go downward or stay at same row
+                continue
+                
             if not (0 <= new_row < 5 and 0 <= new_col < 5):
                 continue
                 
