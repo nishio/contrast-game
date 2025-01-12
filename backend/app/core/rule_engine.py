@@ -111,7 +111,7 @@ class RuleEngine:
             # Validate movement direction based on player
             if player == 1 and new_row >= row:  # Player 1 must move upward (toward row 0)
                 continue
-            if player == 2 and new_row >= row:  # Player 2 must move downward (toward row 4)
+            if player == 2 and new_row <= row:  # Player 2 must move downward (toward row 4)
                 continue
             if not (0 <= new_row < 5 and 0 <= new_col < 5):
                 continue

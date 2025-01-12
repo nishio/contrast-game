@@ -1,24 +1,28 @@
 import { test, expect } from '@playwright/test';
-import fetch from 'node-fetch';
 
 test.describe('Player Movement Tests', () => {
+  // Add timeout for the entire test suite
+  test.setTimeout(60000);
   test.beforeEach(async ({ page }) => {
-    // Wait for backend to be ready
-    let backendReady = false;
-    while (!backendReady) {
-      try {
-        const response = await fetch('http://localhost:8000/api/games/create');
-        if (response.ok) {
-          backendReady = true;
+    // Wait for both servers to be ready
+    const waitForServer = async (url: string, maxAttempts = 30) => {
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const response = await page.goto(url);
+          if (response && response.ok()) {
+            return true;
+          }
+        } catch (e) {
+          console.log(`Waiting for ${url}...`);
         }
-      } catch (e) {
-        console.log('Waiting for backend server...');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    }
-    
-    // Navigate to frontend
-    await page.goto('http://localhost:3000');
+      throw new Error(`Server ${url} not ready after ${maxAttempts} seconds`);
+    };
+
+    // Wait for both servers
+    await waitForServer('http://localhost:8000/api/games/create');
+    await waitForServer('http://localhost:3000');
   });
 
   test('allows Player 2 to move pieces downward', async ({ page }) => {
