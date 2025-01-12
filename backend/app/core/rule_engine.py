@@ -143,8 +143,19 @@ class RuleEngine:
     @staticmethod
     def validate_move(game_state: GameState, move: Move) -> bool:
         """Validate if a move is legal."""
+        # First check if the move is in the list of legal moves
         legal_moves = RuleEngine.get_legal_moves(game_state)
-        return move in legal_moves
+        if move not in legal_moves:
+            return False
+            
+        # Additional validation: Cannot place a tile under the newly moved piece
+        if move.tile_placement:
+            target_row, target_col = move.target_position
+            tile_row, tile_col = move.tile_placement.position
+            if target_row == tile_row and target_col == tile_col:
+                return False
+                
+        return True
 
     @staticmethod
     def apply_move(game_state: GameState, move: Move) -> GameState:

@@ -317,24 +317,43 @@ export default function Home() {
           resetStates();
           
           // If AI goes first, trigger AI move
-          if (mode === 'ah' || mode === 'aa') {
-            // TODO: Implement AI move request
-            console.log('AI should move first');
+          if ((mode === 'ah' || mode === 'aa') && data.legal_moves && data.legal_moves.length > 0 && !aiMadeMove) {
+            const randomMove = data.legal_moves[Math.floor(Math.random() * data.legal_moves.length)];
+            setTimeout(() => {
+              if (wsRef.current) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'move',
+                  data: randomMove
+                }));
+                setAiMadeMove(true);
+              }
+            }, 1000);
           }
         } else if (data.type === 'game_state_update') {
           console.log('Updating game state');
           setGameState(data.data);
           resetStates();
           
-          // Check if it's AI's turn
+          // Check if it's AI's turn and hasn't moved yet
           const isAITurn = (
             (mode === 'ha' && data.data.current_player === 2) ||
             (mode === 'ah' && data.data.current_player === 1) ||
             mode === 'aa'
           )
-          if (isAITurn) {
-            // TODO: Implement AI move request
-            console.log('AI should move');
+          if (isAITurn && !aiMadeMove && data.data.legal_moves && data.data.legal_moves.length > 0) {
+            const randomMove = data.data.legal_moves[Math.floor(Math.random() * data.data.legal_moves.length)];
+            setTimeout(() => {
+              if (wsRef.current) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'move',
+                  data: randomMove
+                }));
+                setAiMadeMove(true);
+              }
+            }, 1000);
+          } else if (!isAITurn) {
+            // Reset AI move flag when it's human's turn
+            setAiMadeMove(false);
           }
         } else if (data.type === 'move_response') {
           if (data.status === 'error') {
