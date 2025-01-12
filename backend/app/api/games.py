@@ -96,29 +96,28 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
         game_state = game_manager.get_game_state(game_id)
         if game_state:
             state_dict = {
-                "board": [[{
-                    "color": cell.color,
-                    "piece": cell.piece
-                } for cell in row] for row in game_state.board.grid],
-                "current_player": game_state.current_player,
-                "available_tiles": (game_state.player1_tiles 
-                                if game_state.current_player == 1 
-                                else game_state.player2_tiles),
-                "legal_moves": [
-                    {
+                "type": "game_state_update",
+                "data": {
+                    "board": [[{
+                        "color": cell.color,
+                        "piece": cell.piece
+                    } for cell in row] for row in game_state.board.grid],
+                    "current_player": game_state.current_player,
+                    "available_tiles": (game_state.player1_tiles 
+                                    if game_state.current_player == 1 
+                                    else game_state.player2_tiles),
+                    "legal_moves": [{
                         "piece_position": move.piece_position,
                         "target_position": move.target_position,
                         "possible_tile_placements": [
-                            {"position": pos, "color": color}
-                            for pos in [(r, c) for r in range(5) for c in range(5)]
-                            if game_state.board.grid[pos[0]][pos[1]].piece is None
+                            {"position": cell, "color": color}
+                            for cell in RuleEngine._get_empty_cells(game_state.board)
                             for color in ["black", "gray"]
                             if (game_state.player1_tiles if game_state.current_player == 1 
                                 else game_state.player2_tiles)[color] > 0
                         ] + [None]
-                    }
-                    for move in RuleEngine.get_legal_moves(game_state)
-                ]
+                    } for move in RuleEngine.get_legal_moves(game_state)]
+                }
             }
             await websocket.send_json(state_dict)
         

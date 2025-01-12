@@ -44,14 +44,28 @@ class GameManager:
             
         # Convert state to dict for JSON serialization
         state_dict = {
-            "board": [[{
-                "color": cell.color,
-                "piece": cell.piece
-            } for cell in row] for row in state.board.grid],
-            "current_player": state.current_player,
-            "available_tiles": (state.player1_tiles 
-                              if state.current_player == 1 
-                              else state.player2_tiles)
+            "type": "game_state_update",
+            "data": {
+                "board": [[{
+                    "color": cell.color,
+                    "piece": cell.piece
+                } for cell in row] for row in state.board.grid],
+                "current_player": state.current_player,
+                "available_tiles": (state.player1_tiles 
+                                if state.current_player == 1 
+                                else state.player2_tiles),
+                "legal_moves": [{
+                    "piece_position": move.piece_position,
+                    "target_position": move.target_position,
+                    "possible_tile_placements": [
+                        {"position": cell, "color": color}
+                        for cell in RuleEngine._get_empty_cells(state.board)
+                        for color in ["black", "gray"]
+                        if (state.player1_tiles if state.current_player == 1 
+                            else state.player2_tiles)[color] > 0
+                    ] + [None]
+                } for move in RuleEngine.get_legal_moves(state)]
+            }
         }
         
         # Notify all connected clients
