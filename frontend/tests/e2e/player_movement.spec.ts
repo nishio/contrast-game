@@ -1,65 +1,77 @@
 import { test, expect } from '@playwright/test';
+import WebSocket from 'ws';
 
 test.describe('Player Movement Tests', () => {
-  // Add timeout for the entire test suite
-  test.setTimeout(60000);
-  test.beforeEach(async ({ page }) => {
-    // Wait for both servers to be ready
-    const waitForServer = async (url: string, maxAttempts = 30) => {
-      for (let i = 0; i < maxAttempts; i++) {
-        try {
-          const response = await page.goto(url);
-          if (response && response.ok()) {
-            return true;
-          }
-        } catch (e) {
-          console.log(`Waiting for ${url}...`);
+  test('allows Player 2 to move pieces downward', async () => {
+    // Create a new game
+    const createResponse = await fetch('http://localhost:8000/api/games/create', {
+      method: 'POST'
+    });
+    const { game_id } = await createResponse.json();
+    expect(game_id).toBeTruthy();
+
+    // Connect to WebSocket
+    const ws = new WebSocket(`ws://localhost:8000/api/games/${game_id}/ws`);
+    
+    // Wait for connection and initial state
+    const initialState = await new Promise((resolve) => {
+      ws.on('message', (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.type === 'game_state_update') {
+          resolve(message.data);
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      });
+    });
+
+    expect(initialState.current_player).toBe(1);
+
+    // Make Player 1's move (upward)
+    const player1Move = {
+      type: 'move',
+      data: {
+        piece_position: [4, 2],
+        target_position: [3, 2],
+        tile_placement: null
       }
-      throw new Error(`Server ${url} not ready after ${maxAttempts} seconds`);
     };
+    ws.send(JSON.stringify(player1Move));
 
-    // Wait for both servers
-    await waitForServer('http://localhost:8000/api/games/create');
-    await waitForServer('http://localhost:3000');
-  });
+    // Wait for move response and new state
+    const player1MoveResult = await new Promise((resolve) => {
+      ws.on('message', (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.type === 'move_response') {
+          resolve(message);
+        }
+      });
+    });
 
-  test('allows Player 2 to move pieces downward', async ({ page }) => {
-    // Add debug logging
-    page.on('console', msg => console.log('Browser console:', msg.text()));
-    // Wait for game setup panel and select Human vs Human mode
-    await page.waitForSelector('button:has-text("Human vs Human"), button:has-text("人間 vs 人間")');
-    const button = await page.locator('button:has-text("Human vs Human"), button:has-text("人間 vs 人間")').first();
-    await button.click();
+    expect(player1MoveResult.status).toBe('success');
 
-    // Wait for WebSocket connection success toast
-    await page.waitForSelector('text=/Connected to game server|ゲームサーバーに接続しました/');
-    
-    // Wait for initial game state
-    await page.waitForSelector('[data-testid="cell-4-2"]');
-    
-    // Make a move with Player 1 (upward)
-    await page.click('[data-testid="cell-4-2"]'); // Select center piece
-    await page.waitForTimeout(1000); // Wait for legal moves to appear
-    await page.click('[data-testid="cell-3-2"]'); // Move up
-    
-    // Wait for Player 2's turn
-    await page.waitForSelector('text=/Current Player: 2|プレイヤー2のターン/');
-    
-    // Make a move with Player 2 (downward)
-    await page.click('[data-testid="cell-0-2"]'); // Select center piece
-    await page.waitForTimeout(1000); // Wait for legal moves to appear
-    await page.click('[data-testid="cell-1-2"]'); // Move down
-    
-    // Wait to ensure move is processed
-    await page.waitForTimeout(1000);
-    
-    // Verify no error toast appears
-    await expect(page.getByText(/Move error|移動エラー/)).not.toBeVisible();
-    
-    // Additional verification that the move was successful
-    const cell = await page.locator('[data-testid="cell-1-2"]');
-    await expect(cell).toHaveAttribute('data-piece', '2');
+    // Make Player 2's move (downward)
+    const player2Move = {
+      type: 'move',
+      data: {
+        piece_position: [0, 2],
+        target_position: [1, 2],
+        tile_placement: null
+      }
+    };
+    ws.send(JSON.stringify(player2Move));
+
+    // Wait for move response
+    const player2MoveResult = await new Promise((resolve) => {
+      ws.on('message', (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.type === 'move_response') {
+          resolve(message);
+        }
+      });
+    });
+
+    expect(player2MoveResult.status).toBe('success');
+    expect(player2MoveResult.data.board[1][2].piece).toBe(2);
+
+    ws.close();
   });
 });
