@@ -30,8 +30,8 @@ async def get_game_state(game_id: str) -> dict:
                           if game_state.current_player == 1 
                           else game_state.player2_tiles),
         "legal_moves": [{
-            "piece_position": move.piece_position,
-            "target_position": move.target_position,
+            "piece_position": legal_move.piece_position,
+            "target_position": legal_move.target_position,
             "possible_tile_placements": [
                 {"position": cell, "color": color}
                 for cell in RuleEngine._get_empty_cells(game_state.board)
@@ -39,7 +39,7 @@ async def get_game_state(game_id: str) -> dict:
                 if (game_state.player1_tiles if game_state.current_player == 1 
                     else game_state.player2_tiles)[color] > 0
             ] + [None]
-        } for move in RuleEngine.get_legal_moves(game_state)]
+        } for legal_move in RuleEngine.get_legal_moves(game_state)]
     }
 
 @router.post("/{game_id}/move")
@@ -56,8 +56,8 @@ async def submit_move(game_id: str, move: Move):
     winner = RuleEngine.check_win_condition(new_state)
     
     response = {
-        "status": "success",
-        "game_state": {
+        "type": "game_state_update",
+        "data": {
             "board": [[{
                 "color": cell.color,
                 "piece": cell.piece
@@ -65,13 +65,24 @@ async def submit_move(game_id: str, move: Move):
             "current_player": new_state.current_player,
             "available_tiles": (new_state.player1_tiles 
                             if new_state.current_player == 1 
-                            else new_state.player2_tiles)
+                            else new_state.player2_tiles),
+            "legal_moves": [{
+                "piece_position": move.piece_position,
+                "target_position": move.target_position,
+                "possible_tile_placements": [
+                    {"position": cell, "color": color}
+                    for cell in RuleEngine._get_empty_cells(new_state.board)
+                    for color in ["black", "gray"]
+                    if (new_state.player1_tiles if new_state.current_player == 1 
+                        else new_state.player2_tiles)[color] > 0
+                ] + [None]
+            } for move in RuleEngine.get_legal_moves(new_state)]
         }
     }
     if winner:
-        response["winner"] = str(winner)
+        response["data"]["winner"] = str(winner)
     if RuleEngine.check_repetition(new_state):
-        response["repetition"] = "true"
+        response["data"]["repetition"] = "true"
     return response
 
 @router.get("/{game_id}/legal_moves")
@@ -96,29 +107,28 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
         game_state = game_manager.get_game_state(game_id)
         if game_state:
             state_dict = {
-                "board": [[{
-                    "color": cell.color,
-                    "piece": cell.piece
-                } for cell in row] for row in game_state.board.grid],
-                "current_player": game_state.current_player,
-                "available_tiles": (game_state.player1_tiles 
-                                if game_state.current_player == 1 
-                                else game_state.player2_tiles),
-                "legal_moves": [
-                    {
+                "type": "game_state_update",
+                "data": {
+                    "board": [[{
+                        "color": cell.color,
+                        "piece": cell.piece
+                    } for cell in row] for row in game_state.board.grid],
+                    "current_player": game_state.current_player,
+                    "available_tiles": (game_state.player1_tiles 
+                                    if game_state.current_player == 1 
+                                    else game_state.player2_tiles),
+                    "legal_moves": [{
                         "piece_position": move.piece_position,
                         "target_position": move.target_position,
                         "possible_tile_placements": [
-                            {"position": pos, "color": color}
-                            for pos in [(r, c) for r in range(5) for c in range(5)]
-                            if game_state.board.grid[pos[0]][pos[1]].piece is None
+                            {"position": cell, "color": color}
+                            for cell in RuleEngine._get_empty_cells(game_state.board)
                             for color in ["black", "gray"]
                             if (game_state.player1_tiles if game_state.current_player == 1 
                                 else game_state.player2_tiles)[color] > 0
                         ] + [None]
-                    }
-                    for move in RuleEngine.get_legal_moves(game_state)
-                ]
+                    } for move in RuleEngine.get_legal_moves(game_state)]
+                }
             }
             await websocket.send_json(state_dict)
         
@@ -130,11 +140,37 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                     move = Move(**move_data)
                     if RuleEngine.validate_move(game_state, move):
                         new_state = await game_manager.apply_move(game_id, move)
-                        await websocket.send_json({
+                        response = {
                             "type": "move_response",
                             "status": "success",
-                            "winner": RuleEngine.check_win_condition(new_state)
-                        })
+                            "data": {
+                                "board": [[{
+                                    "color": cell.color,
+                                    "piece": cell.piece
+                                } for cell in row] for row in new_state.board.grid],
+                                "current_player": new_state.current_player,
+                                "available_tiles": (new_state.player1_tiles 
+                                                if new_state.current_player == 1 
+                                                else new_state.player2_tiles),
+                                "legal_moves": [{
+                                    "piece_position": move.piece_position,
+                                    "target_position": move.target_position,
+                                    "possible_tile_placements": [
+                                        {"position": cell, "color": color}
+                                        for cell in RuleEngine._get_empty_cells(new_state.board)
+                                        for color in ["black", "gray"]
+                                        if (new_state.player1_tiles if new_state.current_player == 1 
+                                            else new_state.player2_tiles)[color] > 0
+                                    ] + [None]
+                                } for move in RuleEngine.get_legal_moves(new_state)]
+                            }
+                        }
+                        winner = RuleEngine.check_win_condition(new_state)
+                        if winner:
+                            response["data"]["winner"] = str(winner)
+                        if RuleEngine.check_repetition(new_state):
+                            response["data"]["repetition"] = "true"
+                        await websocket.send_json(response)
                     else:
                         await websocket.send_json({
                             "type": "move_response",
