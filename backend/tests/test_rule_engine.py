@@ -37,7 +37,8 @@ def test_initial_board_setup(initial_game_state):
             assert board.grid[row][col].color == "white"
 
 def test_basic_legal_moves(initial_game_state):
-    """Test that basic legal moves are generated correctly."""
+    """Test that basic legal moves are generated correctly for both players."""
+    # Test Player 1's upward moves
     legal_moves = RuleEngine.get_legal_moves(initial_game_state)
     
     # Player 1 should be able to move each piece up one square
@@ -54,10 +55,29 @@ def test_basic_legal_moves(initial_game_state):
     # Check that all expected moves are in the legal moves
     for move in expected_moves:
         assert move in actual_moves
+        
+    # Test Player 2's downward moves
+    initial_game_state.current_player = 2
+    legal_moves = RuleEngine.get_legal_moves(initial_game_state)
+    
+    # Player 2 should be able to move each piece down one square
+    expected_moves = set()
+    for col in range(5):
+        expected_moves.add((0, col, 1, col))  # from_row, from_col, to_row, to_col
+        
+    actual_moves = {
+        (move.piece_position[0], move.piece_position[1],
+         move.target_position[0], move.target_position[1])
+        for move in legal_moves
+    }
+    
+    # Check that all expected moves are in the legal moves
+    for move in expected_moves:
+        assert move in actual_moves
 
 def test_jumping_moves(initial_game_state):
-    """Test that jumping moves are generated correctly."""
-    # Set up a position where jumping is possible
+    """Test that jumping moves are generated correctly and respect player directions."""
+    # Test Player 1's upward jump
     initial_game_state.board.grid[3][2].piece = 1  # Place piece that will jump
     initial_game_state.board.grid[4][2].piece = None  # Remove the original piece
     initial_game_state.board.grid[2][2].piece = 2  # Place opponent piece to jump over
@@ -69,9 +89,31 @@ def test_jumping_moves(initial_game_state):
            abs(move.piece_position[1] - move.target_position[1]) > 1
     ]
     
-    # Should be able to jump from (3,2) to (1,2)
+    # Player 1 should be able to jump upward from (3,2) to (1,2)
     assert any(
         move.piece_position == (3, 2) and move.target_position == (1, 2)
+        for move in jump_moves
+    )
+    
+    # Reset board
+    initial_game_state.board = Board()
+    initial_game_state.current_player = 2
+    
+    # Test Player 2's downward jump
+    initial_game_state.board.grid[1][2].piece = 2  # Place piece that will jump
+    initial_game_state.board.grid[0][2].piece = None  # Remove the original piece
+    initial_game_state.board.grid[2][2].piece = 1  # Place opponent piece to jump over
+    
+    legal_moves = RuleEngine.get_legal_moves(initial_game_state)
+    jump_moves = [
+        move for move in legal_moves
+        if abs(move.piece_position[0] - move.target_position[0]) > 1 or
+           abs(move.piece_position[1] - move.target_position[1]) > 1
+    ]
+    
+    # Player 2 should be able to jump downward from (1,2) to (3,2)
+    assert any(
+        move.piece_position == (1, 2) and move.target_position == (3, 2)
         for move in jump_moves
     )
 
@@ -96,13 +138,23 @@ def test_tile_placement(initial_game_state):
     assert new_state.player1_tiles["black"] == 2
 
 def test_win_condition(initial_game_state):
-    """Test that win conditions are detected correctly."""
-    # Move a player 1 piece to the top row
+    """Test that win conditions are detected correctly for both players."""
+    # Test Player 1 win (reaching top row)
     initial_game_state.board.grid[0][0].piece = 1
     initial_game_state.board.grid[4][0].piece = None
     
     winner = RuleEngine.check_win_condition(initial_game_state)
     assert winner == 1
+    
+    # Reset board
+    initial_game_state.board = Board()
+    
+    # Test Player 2 win (reaching bottom row)
+    initial_game_state.board.grid[4][0].piece = 2
+    initial_game_state.board.grid[0][0].piece = None
+    
+    winner = RuleEngine.check_win_condition(initial_game_state)
+    assert winner == 2
 
 def test_repetition_detection(initial_game_state):
     """Test that repetition (千日手) is detected correctly."""
