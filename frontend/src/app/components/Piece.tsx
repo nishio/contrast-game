@@ -8,24 +8,37 @@ interface PieceProps {
 
 export function Piece({ piece, tileColor }: PieceProps) {
   // Determine which arrows to show based on tile color
-  // Show orthogonal arrows (black) on white and gray tiles
   const showOrthogonalArrows = tileColor === 'white' || tileColor === 'gray'
-  // Show diagonal arrows (white) on black and gray tiles
   const showDiagonalArrows = tileColor === 'black' || tileColor === 'gray'
+
+  // Pentagon points for SVG - sharper point for better direction indication
+  const pentagonPoints = "50,0 95,40 80,100 20,100 5,40"
 
   return (
     <Box position="relative" width="40px" height="40px">
-      {/* Main piece circle */}
+      {/* Main piece pentagon */}
       <Box
-        w="40px"
-        h="40px"
-        borderRadius="full"
-        bg={piece === 1 ? 'blue.500' : 'red.500'}
+        as="svg"
+        viewBox="0 0 100 100"
+        width="40px"
+        height="40px"
         position="absolute"
         top="0"
         left="0"
         zIndex={1}
-      />
+        transform={piece === 1 ? 'rotate(0deg)' : 'rotate(180deg)'}
+        style={{
+          filter: 'drop-shadow(0px 2px 2px rgba(0,0,0,0.2))',
+          transition: 'transform 0.2s ease-in-out'
+        }}
+      >
+        <polygon
+          points={pentagonPoints}
+          fill={piece === 1 ? '#3182CE' : '#E53E3E'} // blue.500 or red.500
+          stroke="rgba(0,0,0,0.1)"
+          strokeWidth="2"
+        />
+      </Box>
       
       {/* Container for arrows */}
       <Box
