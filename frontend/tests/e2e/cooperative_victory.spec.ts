@@ -24,10 +24,12 @@ test.describe('Cooperative Victory Scenario', () => {
     });
 
     expect(initialState.current_player).toBe(1);
-    // Verify initial board setup
-    expect(initialState.board[4][3].piece).toBe(1); // Player 1 starts at bottom row (row 5 -> index 4)
-    expect(initialState.board[0][3].piece).toBe(2); // Player 2 starts at top row (row 1 -> index 0)
-    expect(initialState.board[4][3].color).toBe('white'); // All tiles start white
+    // Verify initial board setup matches Japanese scenario:
+    // Player 1 starts at row 1 (index 0), Player 2 at row 5 (index 4)
+    expect(initialState.board[0][2].piece).toBe(1); // Player 1 at row 1 (index 0)
+    expect(initialState.board[4][2].piece).toBe(2); // Player 2 at row 5 (index 4)
+    expect(initialState.board[0][2].color).toBe('white'); // All tiles start white
+    expect(initialState.board[4][2].color).toBe('white'); // All tiles start white
 
     // Helper function to make a move and wait for response
     const makeMove = async (move) => {
@@ -49,72 +51,73 @@ test.describe('Cooperative Victory Scenario', () => {
       return result.data;
     };
 
-    // Move 1: Player 1 moves (4,3) → (3,3)
+    // Move 1: Player 1 moves (1,3) → (2,3) on white tile
     let state = await makeMove({
-      piece_position: [4, 3],  // Player 1 starts at bottom row
-      target_position: [3, 3], // Move up one space (white tile)
-      tile_placement: null
+      piece_position: [0, 2],  // Player 1 at (1,3) -> [0,2]
+      target_position: [1, 2], // Move to (2,3) -> [1,2]
+      tile_placement: null     // No tile placement
+    });
+    expect(state.board[1][2].piece).toBe(1);
+    expect(state.board[1][2].color).toBe('white'); // Verify moving on white tile
+
+    // Move 2: Player 2 moves (5,3) → (4,3) and places black tile at (3,3)
+    state = await makeMove({
+      piece_position: [4, 2],  // Player 2 at (5,3) -> [4,2]
+      target_position: [3, 2], // Move to (4,3) -> [3,2]
+      tile_placement: {
+        position: [2, 2],      // Place black tile at (3,3) -> [2,2]
+        color: 'black'         // Black tile enables diagonal movement
+      }
+    });
+    expect(state.board[3][2].piece).toBe(2);
+    expect(state.board[2][2].color).toBe('black');
+
+    // Move 3: Player 1 moves (2,3) → (3,3) onto black tile
+    state = await makeMove({
+      piece_position: [1, 2],  // From (2,3) -> [1,2]
+      target_position: [2, 2], // Move to (3,3) -> [2,2] black tile
+      tile_placement: null     // No tile placement
+    });
+    expect(state.board[2][2].piece).toBe(1);
+    expect(state.board[2][2].color).toBe('black'); // Verify on black tile
+
+    // Move 4: Player 2 moves (4,3) → (4,2) and places gray tile at (4,4)
+    state = await makeMove({
+      piece_position: [3, 2],  // From (4,3) -> [3,2]
+      target_position: [3, 1], // Move to (4,2) -> [3,1]
+      tile_placement: {
+        position: [3, 3],      // Place gray tile at (4,4) -> [3,3]
+        color: 'gray'          // Gray tile enables all-direction movement
+      }
+    });
+    expect(state.board[3][1].piece).toBe(2);
+    expect(state.board[3][3].color).toBe('gray');
+
+    // Move 5: Player 1 moves (3,3) → (4,4) diagonally from black to gray tile
+    state = await makeMove({
+      piece_position: [2, 2],  // From (3,3) black tile -> [2,2]
+      target_position: [3, 3], // Move to (4,4) gray tile -> [3,3]
+      tile_placement: null     // No tile placement
     });
     expect(state.board[3][3].piece).toBe(1);
-    expect(state.board[3][3].color).toBe('white'); // Verify moving on white tile
+    expect(state.board[3][3].color).toBe('gray'); // Verify on gray tile
 
-    // Move 2: Player 2 moves (0,3) → (1,3) and places black tile at (2,3)
+    // Move 6: Player 2 moves (4,2) → (3,2) to clear path
     state = await makeMove({
-      piece_position: [0, 3],  // Player 2 starts at top row
-      target_position: [1, 3], // Move down one space
-      tile_placement: {
-        position: [2, 3],      // Place black tile for diagonal movement
-        color: 'black'
-      }
+      piece_position: [3, 1],  // From (4,2) -> [3,1]
+      target_position: [2, 1], // Move to (3,2) -> [2,1]
+      tile_placement: null     // No tile placement (optional)
     });
-    expect(state.board[1][3].piece).toBe(2);
-    expect(state.board[2][3].color).toBe('black');
+    expect(state.board[2][1].piece).toBe(2);
 
-    // Move 3: Player 1 moves (3,3) → (2,3) onto black tile
+    // Move 7: Player 1 moves (4,4) → (5,3) for victory
     state = await makeMove({
-      piece_position: [3, 3],  // From previous position
-      target_position: [2, 3], // Move to black tile
-      tile_placement: null
+      piece_position: [3, 3],  // From (4,4) gray tile -> [3,3]
+      target_position: [4, 2], // Move to (5,3) -> [4,2] for victory
+      tile_placement: null     // No tile placement
     });
-    expect(state.board[2][3].piece).toBe(1);
-    expect(state.board[2][3].color).toBe('black'); // Verify on black tile
-
-    // Move 4: Player 2 moves (1,3) → (1,2) and places gray tile at (3,4)
-    state = await makeMove({
-      piece_position: [1, 3],  // From previous position
-      target_position: [1, 2], // Move aside
-      tile_placement: {
-        position: [3, 4],      // Place gray tile for next move
-        color: 'gray'
-      }
-    });
-    expect(state.board[1][2].piece).toBe(2);
-    expect(state.board[3][4].color).toBe('gray');
-
-    // Move 5: Player 1 moves diagonally (2,3) → (3,4) from black to gray tile
-    state = await makeMove({
-      piece_position: [2, 3],  // From black tile
-      target_position: [3, 4], // Move diagonally to gray tile
-      tile_placement: null
-    });
-    expect(state.board[3][4].piece).toBe(1);
-    expect(state.board[3][4].color).toBe('gray'); // Verify on gray tile
-
-    // Move 6: Player 2 moves (1,2) → (2,2) to clear path
-    state = await makeMove({
-      piece_position: [1, 2],  // From previous position
-      target_position: [2, 2], // Move down and away
-      tile_placement: null
-    });
-    expect(state.board[2][2].piece).toBe(2);
-
-    // Move 7: Player 1 moves (3,4) → (4,3) for victory
-    state = await makeMove({
-      piece_position: [3, 4],  // From gray tile
-      target_position: [4, 3], // Move to bottom row for victory
-      tile_placement: null
-    });
-    expect(state.board[4][3].piece).toBe(1); // Verify piece reached bottom row
+    expect(state.board[4][2].piece).toBe(1); // Verify piece reached row 5 (index 4)
+    expect(state.winner).toBe('1'); // Verify Player 1 victory
     expect(state.winner).toBe('1'); // Verify Player 1 victory
 
     ws.close();
