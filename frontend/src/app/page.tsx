@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Box, Grid, GridItem, Text, VStack, HStack, Button, useToast } from '@chakra-ui/react'
 import { Piece } from './components/Piece'
+import { GameSetupPanel, GameMode } from './components/GameSetupPanel'
 
 interface Cell {
   color: 'white' | 'black' | 'gray'
@@ -36,6 +37,12 @@ export default function Home() {
   const [selectedPiece, setSelectedPiece] = useState<[number, number] | null>(null)
   const [legalMoves, setLegalMoves] = useState<[number, number][]>([])
   const [selectedTileColor, setSelectedTileColor] = useState<'black' | 'gray' | null>(null)
+  const [tilePlacementMode, setTilePlacementMode] = useState(false)
+  const [pendingMove, setPendingMove] = useState<{
+    piece_position: [number, number]
+    target_position: [number, number]
+  } | null>(null)
+  const [gameMode, setGameMode] = useState<GameMode | null>(null)
   const wsRef = useRef<WebSocket | null>(null);
   const toast = useToast()
 
@@ -69,19 +76,23 @@ export default function Home() {
           const data = JSON.parse(event.data);
           console.log('Parsed data:', data);
           
-          if (data.board) {  // Initial game state doesn't have type
-            console.log('Setting initial game state');
-            setGameState(data);
+          // Reset all selection states whenever we receive a message
+          const resetStates = () => {
             setSelectedPiece(null);
             setLegalMoves([]);
             setSelectedTileColor(null);
+            setTilePlacementMode(false);
+            setPendingMove(null);
+          };
+          
+          if (data.board) {  // Initial game state
+            console.log('Setting initial game state');
+            setGameState(data);
+            resetStates();
           } else if (data.type === 'game_state_update') {
             console.log('Updating game state');
             setGameState(data.data);
-            // Reset selections when state updates
-            setSelectedPiece(null);
-            setLegalMoves([]);
-            setSelectedTileColor(null);
+            resetStates();
           } else if (data.type === 'move_response') {
             if (data.status === 'error') {
               toast({
@@ -90,12 +101,21 @@ export default function Home() {
                 status: 'error',
                 duration: 3000,
               });
-            } else if (data.winner) {
-              toast({
-                title: `Player ${data.winner} wins!`,
-                status: 'success',
-                duration: 5000,
-              });
+              // Don't reset states on error so player can try again
+            } else {
+              // On successful move
+              if (data.game_state) {
+                setGameState(data.game_state);
+              }
+              resetStates();
+              
+              if (data.winner) {
+                toast({
+                  title: `Player ${data.winner} wins!`,
+                  status: 'success',
+                  duration: 5000,
+                });
+              }
             }
           }
         };
@@ -129,7 +149,46 @@ export default function Home() {
   }, [])
 
   const handleCellClick = (row: number, col: number) => {
-    if (!gameState || !wsRef.current) return
+    if (!gameState || !wsRef.current || !gameMode) return
+    
+    // Check if it's AI's turn
+    const isAITurn = (
+      (gameMode === 'ha' && gameState.current_player === 2) ||
+      (gameMode === 'ah' && gameState.current_player === 1) ||
+      gameMode === 'aa'
+    )
+    if (isAITurn) {
+      toast({
+        title: 'AI思考中 / AI is thinking',
+        status: 'info',
+        duration: 2000,
+      })
+      return
+    }
+
+    // Handle tile placement mode
+    if (tilePlacementMode && pendingMove && !gameState.board[row][col].piece) {
+      const move: Move = {
+        piece_position: pendingMove.piece_position,
+        target_position: pendingMove.target_position,
+        tile_placement: selectedTileColor ? {
+          position: [row, col],
+          color: selectedTileColor
+        } : null
+      }
+      
+      console.log('Submitting move with tile placement:', move)
+      wsRef.current.send(JSON.stringify({
+        type: 'move',
+        data: move
+      }))
+      
+      // Reset all states
+      setTilePlacementMode(false)
+      setPendingMove(null)
+      setSelectedTileColor(null)
+      return
+    }
 
     // If no piece is selected and the clicked cell has a piece of the current player
     if (!selectedPiece && gameState.board[row][col].piece === gameState.current_player) {
@@ -139,70 +198,48 @@ export default function Home() {
         move => move.piece_position[0] === row && move.piece_position[1] === col
       )
       setLegalMoves(moves.map(move => move.target_position))
-      console.log('Legal moves:', moves)  // Debug log
+      console.log('Legal moves:', moves)
     }
     // If a piece is selected and the clicked cell is a legal move
     else if (selectedPiece && legalMoves.some(([r, c]) => r === row && c === col)) {
-      // Find the specific move that matches our selection
-      const selectedMove = gameState.legal_moves.find(
-        move => move.piece_position[0] === selectedPiece[0] &&
-               move.piece_position[1] === selectedPiece[1] &&
-               move.target_position[0] === row &&
-               move.target_position[1] === col
-      )
-      
-      if (!selectedMove) {
-        console.error('Move not found in legal moves')
-        return
-      }
-
-      // If a tile color is selected, find a matching tile placement
-      let tilePlacement: TilePlacement | null = null
-      if (selectedTileColor && selectedMove.possible_tile_placements) {
-        const foundPlacement = selectedMove.possible_tile_placements.find(
-          placement => placement && placement.color === selectedTileColor
-        )
-        if (foundPlacement) {
-          tilePlacement = foundPlacement
-        }
-      }
-      
-      // Submit move through WebSocket
-      const move: Move = {
+      // Store the move details
+      setPendingMove({
         piece_position: selectedPiece,
-        target_position: [row, col],
-        tile_placement: tilePlacement,
-        possible_tile_placements: selectedMove.possible_tile_placements
+        target_position: [row, col]
+      })
+      
+      // If a tile color is selected, enter tile placement mode
+      if (selectedTileColor) {
+        setTilePlacementMode(true)
+        toast({
+          title: 'Select tile placement',
+          description: 'Click an empty cell to place your tile, or click a piece to cancel',
+          status: 'info',
+          duration: 5000,
+        })
+      } else {
+        // If no tile color selected, submit move immediately
+        const move: Move = {
+          piece_position: selectedPiece,
+          target_position: [row, col],
+          tile_placement: null
+        }
+        
+        console.log('Submitting move without tile:', move)
+        wsRef.current.send(JSON.stringify({
+          type: 'move',
+          data: move
+        }))
       }
       
-      console.log('Submitting move:', move)  // Debug log
-      wsRef.current.send(JSON.stringify({
-        type: 'move',
-        data: move
-      }))
-      
+      // Reset piece selection
       setSelectedPiece(null)
       setLegalMoves([])
-      setSelectedTileColor(null)
     }
-    // If selecting a cell for tile placement only (no piece movement)
-    else if (selectedTileColor && !gameState.board[row][col].piece) {
-      // Create a tile-only placement move
-      const move: Move = {
-        piece_position: [-1, -1],
-        target_position: [-1, -1],
-        tile_placement: {
-          position: [row, col],
-          color: selectedTileColor
-        }
-      }
-      
-      console.log('Submitting tile placement:', move)  // Debug log
-      wsRef.current.send(JSON.stringify({
-        type: 'move',
-        data: move
-      }))
-      
+    // Cancel tile placement mode if clicking on a piece
+    else if (tilePlacementMode && gameState.board[row][col].piece) {
+      setTilePlacementMode(false)
+      setPendingMove(null)
       setSelectedTileColor(null)
     }
     // Deselect if clicking elsewhere
@@ -210,6 +247,8 @@ export default function Home() {
       setSelectedPiece(null)
       setLegalMoves([])
       setSelectedTileColor(null)
+      setTilePlacementMode(false)
+      setPendingMove(null)
     }
   }
 
@@ -233,6 +272,116 @@ export default function Home() {
       case 'gray': return 'gray.500'
       default: return 'white'
     }
+  }
+
+  // Handle game mode selection
+  const handleModeSelect = async (mode: GameMode) => {
+    setGameMode(mode)
+    // Initialize game after mode selection
+    try {
+      const response = await fetch('http://localhost:8000/api/games/create', {
+        method: 'POST'
+      });
+      const { game_id } = await response.json();
+      
+      // Connect to WebSocket
+      const ws = new WebSocket(`ws://localhost:8000/api/games/${game_id}/ws`);
+      wsRef.current = ws;
+      
+      ws.onopen = () => {
+        console.log('Connected to game server');
+        toast({
+          title: 'ゲームサーバーに接続しました / Connected to game server',
+          status: 'success',
+          duration: 3000,
+        });
+      };
+      
+      ws.onmessage = (event) => {
+        console.log('WebSocket message received:', event.data);
+        const data = JSON.parse(event.data);
+        console.log('Parsed data:', data);
+        
+        // Reset all selection states whenever we receive a message
+        const resetStates = () => {
+          setSelectedPiece(null);
+          setLegalMoves([]);
+          setSelectedTileColor(null);
+          setTilePlacementMode(false);
+          setPendingMove(null);
+        };
+        
+        if (data.board) {  // Initial game state
+          console.log('Setting initial game state');
+          setGameState(data);
+          resetStates();
+          
+          // If AI goes first, trigger AI move
+          if (mode === 'ah' || mode === 'aa') {
+            // TODO: Implement AI move request
+            console.log('AI should move first');
+          }
+        } else if (data.type === 'game_state_update') {
+          console.log('Updating game state');
+          setGameState(data.data);
+          resetStates();
+          
+          // Check if it's AI's turn
+          const isAITurn = (
+            (mode === 'ha' && data.data.current_player === 2) ||
+            (mode === 'ah' && data.data.current_player === 1) ||
+            mode === 'aa'
+          )
+          if (isAITurn) {
+            // TODO: Implement AI move request
+            console.log('AI should move');
+          }
+        } else if (data.type === 'move_response') {
+          if (data.status === 'error') {
+            toast({
+              title: 'Move error',
+              description: data.message,
+              status: 'error',
+              duration: 3000,
+            });
+          } else {
+            if (data.game_state) {
+              setGameState(data.game_state);
+            }
+            resetStates();
+            
+            if (data.winner) {
+              toast({
+                title: `Player ${data.winner} wins!`,
+                status: 'success',
+                duration: 5000,
+              });
+            }
+          }
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        toast({
+          title: 'Connection error',
+          status: 'error',
+          duration: 5000,
+        });
+      };
+    } catch (error) {
+      console.error('Failed to initialize game:', error);
+      toast({
+        title: 'Failed to create game',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
+  if (!gameMode) {
+    return <GameSetupPanel onModeSelect={handleModeSelect} />;
   }
 
   if (!gameState) return <Text>Loading...</Text>
