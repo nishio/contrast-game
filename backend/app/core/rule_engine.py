@@ -70,22 +70,47 @@ class RuleEngine:
         if cell.color in ["black", "gray"]:  # Diagonal moves
             directions.extend([(1, 1), (1, -1), (-1, 1), (-1, -1)])
             
-        # Add basic moves (with source color and direction validation)
+        # Add basic moves (with source color validation)
         for dr, dc in directions:
             new_row, new_col = row + dr, col + dc
+            # Basic bounds check first
+            if not (0 <= new_row < 5 and 0 <= new_col < 5):
+                print(f"Skipping move to ({new_row}, {new_col}): Out of bounds")
+                continue
+                
+            # Check if destination cell is empty
+            if board.grid[new_row][new_col].piece is not None:
+                print(f"Skipping move to ({new_row}, {new_col}): Cell is occupied")
+                continue
+                
             # Validate movement direction based on player
             if player == 1 and new_row >= row:  # Player 1 must move upward (toward row 0)
+                print(f"Skipping move to ({new_row}, {new_col}): Player 1 must move upward (current row: {row})")
                 continue
             if player == 2 and new_row <= row:  # Player 2 must move downward (toward row 4)
+                print(f"Skipping move to ({new_row}, {new_col}): Player 2 must move downward (current row: {row})")
                 continue
-            if (0 <= new_row < 5 and 0 <= new_col < 5 and 
-                board.grid[new_row][new_col].piece is None):
-                # For basic moves, validate destination cell color
-                is_diagonal = abs(dr) == abs(dc)
-                dst_color = board.grid[new_row][new_col].color
-                if (is_diagonal and dst_color == "white") or (not is_diagonal and dst_color == "black"):
-                    continue
+                
+            # Check destination cell color constraints
+            is_diagonal = abs(dr) == abs(dc)
+            dst_color = board.grid[new_row][new_col].color
+            
+            # Gray tiles allow all moves
+            if dst_color == "gray":
                 moves.add((new_row, new_col))
+                continue
+                
+            # Black tiles only allow diagonal moves
+            if dst_color == "black" and not is_diagonal:
+                print(f"Skipping move to ({new_row}, {new_col}): Non-diagonal move to black tile")
+                continue
+                
+            # White tiles only allow orthogonal moves
+            if dst_color == "white" and is_diagonal:
+                print(f"Skipping move to ({new_row}, {new_col}): Diagonal move to white tile")
+                continue
+                
+            moves.add((new_row, new_col))
                 
         # Add jumping moves (no source color validation)
         jumps = RuleEngine._get_jump_moves(board, position, player, set())
@@ -107,13 +132,17 @@ class RuleEngine:
             new_row, new_col = row + dr, col + dc
             mid_row, mid_col = row + dr//2, col + dc//2
             
-            # Check bounds, direction, and basic jump conditions
+            # Check bounds first
+            if not (0 <= new_row < 5 and 0 <= new_col < 5):
+                print(f"Skipping jump to ({new_row}, {new_col}): Out of bounds")
+                continue
+                
             # Validate movement direction based on player
             if player == 1 and new_row >= row:  # Player 1 must move upward (toward row 0)
+                print(f"Skipping jump to ({new_row}, {new_col}): Player 1 must move upward")
                 continue
             if player == 2 and new_row <= row:  # Player 2 must move downward (toward row 4)
-                continue
-            if not (0 <= new_row < 5 and 0 <= new_col < 5):
+                print(f"Skipping jump to ({new_row}, {new_col}): Player 2 must move downward")
                 continue
                 
             # Must jump over any piece (not just own pieces) and land on empty cell
@@ -122,16 +151,37 @@ class RuleEngine:
                 (new_row, new_col) in visited):  # No revisiting positions
                 continue
                 
-            # Only validate destination cell color for jumps
+            # Validate destination cell color for jumps
             is_diagonal = abs(dr) == abs(dc)
             dst_color = board.grid[new_row][new_col].color
             
-            # For jumps: orthogonal jumps can't land on black, diagonal jumps can't land on white
-            if (not is_diagonal and dst_color == "black") or (is_diagonal and dst_color == "white"):
+            # Gray tiles allow all jumps
+            if dst_color == "gray":
+                moves.add((new_row, new_col))
+                # Check for further jumps from this position
+                next_jumps = RuleEngine._get_jump_moves(
+                    board, (new_row, new_col), player, visited.copy()
+                )
+                moves.update(next_jumps)
+                continue
+                
+            # Black tiles only allow diagonal jumps
+            if dst_color == "black" and not is_diagonal:
+                print(f"Skipping jump to ({new_row}, {new_col}): Non-diagonal jump to black tile")
+                continue
+                
+            # White tiles only allow orthogonal jumps
+            if dst_color == "white" and is_diagonal:
+                print(f"Skipping jump to ({new_row}, {new_col}): Diagonal jump to white tile")
                 continue
                 
             # Move is valid, add it and check for further jumps
             moves.add((new_row, new_col))
+            # Check for further jumps from this position
+            next_jumps = RuleEngine._get_jump_moves(
+                board, (new_row, new_col), player, visited.copy()
+            )
+            moves.update(next_jumps)
             # Recursively find more jumps from the new position
             next_jumps = RuleEngine._get_jump_moves(
                 board, (new_row, new_col), player, visited.copy()
@@ -153,9 +203,22 @@ class RuleEngine:
     @staticmethod
     def validate_move(game_state: GameState, move: Move) -> bool:
         """Validate if a move is legal."""
+        print("\n=== Move Validation ===")
+        print(f"Current player: {game_state.current_player}")
+        print(f"Validating move: {move}")
+        print("\nBoard state:")
+        for row in range(5):
+            print([f"P{cell.piece if cell.piece else '_'}" for cell in game_state.board.grid[row]])
+        
         # First check if the move is in the list of legal moves
         legal_moves = RuleEngine.get_legal_moves(game_state)
+        print("\nLegal moves:")
+        for legal_move in legal_moves:
+            print(f"- From ({legal_move.piece_position[0]}, {legal_move.piece_position[1]}) "
+                  f"to ({legal_move.target_position[0]}, {legal_move.target_position[1]})")
+        
         if move not in legal_moves:
+            print("\nMove validation failed: Move not in legal moves")
             return False
             
         # Additional validation: Cannot place a tile under the newly moved piece
@@ -208,12 +271,12 @@ class RuleEngine:
     @staticmethod
     def check_win_condition(game_state: GameState) -> Optional[int]:
         """Check if there's a winner. Returns player number or None."""
-        # Check if any player 1 piece reached the top row
+        # Check if any player 1 piece reached row 1 (index 0)
         for col in range(5):
             if game_state.board.grid[0][col].piece == 1:
                 return 1
                 
-        # Check if any player 2 piece reached the bottom row
+        # Check if any player 2 piece reached row 5 (index 4)
         for col in range(5):
             if game_state.board.grid[4][col].piece == 2:
                 return 2
