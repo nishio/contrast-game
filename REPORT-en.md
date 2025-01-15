@@ -16,7 +16,7 @@ The experiment aimed to determine whether an AI agent could autonomously create 
 
 ## Results  
 As of January 2025, the goal of having the AI agent autonomously complete a game server for "Contrast" during the symposium period was not achieved.  
-- **Frontend**: The system allowed for a human-vs-human mode with alternating turns.  
+- **Frontend**: The system allowed for a human-vs-human mode with alternating turns.  It also has human-vs-AI and AI-vs-AI mode but I didn't test it.
 - **Rule Misinterpretations**: The AI failed to understand certain rules, such as the ability to move pieces laterally. Additionally, it incorrectly assumed that pieces could "jump over" the opponent's pieces.  
 - **Backend**: The AI generated code for a game server capable of managing board states according to the rules and an AI opponent selecting moves randomly from valid options. However, due to the rule misinterpretations, the implementation quality was insufficient for direct use.  
 
