@@ -12,7 +12,7 @@ During the 2025 Programming Symposium, held from January 10 to 12, a game called
 The experiment aimed to determine whether an AI agent could autonomously create a fully functional game server for "Contrast" during the symposium period.
 
 ## Methodology  
-Devin.ai was used for this experiment. The interactions and instructions exchanged with the AI agent are documented in [CHATLOG.md](CHATLOG.md).
+[Devin.ai](https://devin.ai/) was used for this experiment. The interactions and instructions exchanged with the AI agent are documented in [CHATLOG.md](CHATLOG.md).
 
 ## Results  
 As of January 2025, the goal of having the AI agent autonomously complete a game server for "Contrast" during the symposium period was not achieved.  
